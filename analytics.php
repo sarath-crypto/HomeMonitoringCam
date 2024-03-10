@@ -36,24 +36,21 @@ function drawBarGraph($cachefilename, $ydata){
 			$ydata = array(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
 			$files = array();
 			$dir_sz = 0;
-			$dir = "data/";
+			$dir = "data/".$data."/";
 			$f = scandir($dir);
 			foreach ($f as $e){
 				$fp = $dir . $e;
 				if(is_file($fp)){
-					$dy = substr($e,4,2);
-					if($dy == $data){
-						$files[] = $fp;
-						$dir_sz += filesize($fp);
-						$hr = substr($e,6,2);
-						$ydata[(int)$hr] += 1;
-					}
+					$files[] = $fp;
+					$dir_sz += filesize($fp);
+					$hr = substr($e,6,2);
+					$ydata[(int)$hr] += 1;
 				}
 			}
 			$files_sz = sizeof($files);
 			echo "[Entries:".$files_sz ."] [Directory Size:". round($dir_sz/1000000,2) . "MB] [Date:". $data . "] <a href='summary.php'>Back to summary page</a></br>";
 
-			$filename = 'graph/plot.png';
+			$filename = 'graph/bar.png';
 			$graph = drawBarGraph($filename, $ydata);
 
 			echo '<table border="4"><tr  style="height:200px"><td width="1600px">';

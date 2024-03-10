@@ -32,7 +32,7 @@ function drawBarGraph($cachefilename, $ydata){
 		$selhr = htmlspecialchars($_POST['hour']);
 		$date = htmlspecialchars($_POST['date']);
 		if (strlen($selhr) > 0){
-			$dir = "data/";
+			$dir = "data/".$date."/";
 			$f = scandir($dir);
 			foreach ($f as $e){
 				$fp = $dir . $e;
