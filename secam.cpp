@@ -17,8 +17,8 @@
 #include <fstream>
 #include <sys/types.h>
 #include <set>
-
-
+#include <iomanip>
+#include <bits/stdc++.h>
 
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
@@ -27,9 +27,7 @@
 #include <cppconn/prepared_statement.h>
 #include "motiondetector.hpp"
 
-#define DIR_MAX_SZ	((unsigned long long int)16106127360)
-//#define DIR_MAX_SZ	((unsigned long long int)4294967296)
-#define DIR_FIFO_SZ	((unsigned long long int)104857600)
+#define DIR_MAX_NUM	14
 #define FRAME_SZ	0x8000
 #define MAX_FERR	16
 
@@ -53,6 +51,12 @@ void  sighandler(int num){
 	exit_main = true;
 }
 
+void sort(map<unsigned int,string>& M){ 
+	multimap<string,unsigned int> MM;
+    	for (auto& it : M) {
+        	MM.insert({ it.second, it.first });
+    	}
+} 
 
 void *proc(void *p){
   	sql::Driver *driver;
@@ -62,15 +66,8 @@ void *proc(void *p){
  	driver = get_driver_instance();
   	con = driver->connect("tcp://127.0.0.1:3306", "usersecam", "secam123");
   	con->setSchema("secam");
-
-	unsigned long long int tz = 0;
-	string path = "/var/www/html/data";
-	for (const auto & entry : fs::directory_iterator(path)) {
-		std::uintmax_t size = std::filesystem::file_size(entry.path());
-		tz += size;
-	}
-
-	syslog(LOG_INFO,"secapp proc started %llu",tz);
+	
+	syslog(LOG_INFO,"secapp proc started");
 	while(!exit_proc){
 		if(!fq.empty()){
 			frames f = fq.front();
@@ -88,6 +85,21 @@ void *proc(void *p){
 			delete prep_stmt;
 
 			if(f.wr){
+				string fn = "/var/www/html/data/";
+				map<unsigned int,string>sname;
+				for (const auto & p : fs::directory_iterator(fn)){
+					struct stat attrib;  
+					stat(p.path().string().c_str(), &attrib); 
+					unsigned int ts = mktime(gmtime(&attrib.st_mtime));
+				        string s = p.path().string();
+					sname[ts] = s;
+				}
+				if(sname.size() > DIR_MAX_NUM){
+					sort(sname);
+					fs::remove_all(sname.begin()->second);
+				}
+				sname.clear();
+				
 				time_t t;
 				struct tm *ptm;
 				time(&t);
@@ -98,36 +110,20 @@ void *proc(void *p){
 				struct timeval tv;
 				gettimeofday(&tv,NULL);
 				unsigned short ms = tv.tv_usec/1000;
-
-				string fn = "/var/www/html/data/";
-				
+			
+				fn.append(ts,4,2);
+				fn += "/";
 				fn = fn.append(ts,strlen(ts));
 				fn = fn+ "m" + to_string(ms) +".jpg";	
-
+				
+				fs::path fp = fn;	
+				if(!fs::is_directory(fp.parent_path()))fs::create_directory(fp.parent_path());
 				int fd = open (fn.c_str(),O_CREAT|O_WRONLY,0006);
 				write(fd,&f.data,f.len);
 				close(fd);
-				tz += f.len;
 			}
 			fq.pop();	
-		}else{
-			if(tz > DIR_MAX_SZ){
-				string path = "/var/www/html/data";
-				set<fs::path>sname;
-				for (const auto & entry : fs::directory_iterator(path))sname.insert(entry.path());
 
-				unsigned long long rz = 0;
-				std::set<fs::path>::iterator it = sname.begin();
-				for (auto &fn : sname){
-					std::uintmax_t size = std::filesystem::file_size(fn);
-					rz += size;
-					std::filesystem::remove(fn);
-					it++;
-					if(rz > tz-(DIR_MAX_SZ-DIR_FIFO_SZ))break;
-				}
-				tz -= rz;	
-				sname.clear();
-			}
 		}
 	}
 	delete con;
@@ -224,6 +220,3 @@ int main(){
 	closelog();
 	return 0;
 }
-
-
-
