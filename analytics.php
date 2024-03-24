@@ -1,5 +1,6 @@
 <?php
-function drawBarGraph($cachefilename, $ydata){
+
+function drawBarGraph($cachefilename, $ydata,$color,$title,$ylegend){
 	require_once ('jpgraph/jpgraph.php');
 	require_once ('jpgraph/jpgraph_utils.inc.php');
 	require_once ('jpgraph/jpgraph_bar.php');
@@ -14,13 +15,13 @@ function drawBarGraph($cachefilename, $ydata){
 		$graph -> SetScale("textlin");
 		$graph->SetShadow();
 		$bplot = new BarPlot($ydata);
-		$bplot->SetFillColor('blue');
+		$bplot->SetFillColor($color);
 		$bplot->SetWidth(1.0);
 		$graph->Add($bplot);
-		$graph->title->Set("Events Graph");
+		$graph->title->Set($title);
 		$graph->xaxis->SetTickLabels(array(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23));
 		$graph->xaxis->title->Set("Time");
-		$graph->yaxis->title->Set("Events");
+		$graph->yaxis->title->Set($ylegend);
 		$graph->title->SetFont(FF_FONT1,FS_BOLD);
 		$graph->yaxis->title->SetFont(FF_FONT1,FS_BOLD);
 		$graph->xaxis->title->SetFont(FF_FONT1,FS_BOLD);
@@ -29,35 +30,53 @@ function drawBarGraph($cachefilename, $ydata){
 	}
 }
 
-
 	if ($_SERVER["REQUEST_METHOD"] == "POST") {
-		$data = htmlspecialchars($_POST['data']);
-		if (empty($data) == FALSE){
-			$ydata = array(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+		$date = htmlspecialchars($_POST['data']);
+		if (empty($date) == FALSE){
+			$ydata = array_fill($ydata,24,0);
 			$files = array();
 			$dir_sz = 0;
-			$dir = "data/".$data."/";
-			$f = scandir($dir);
+			$dir = "data/".$date."/*.jpg";
+			$f = glob($dir);
 			foreach ($f as $e){
-				$fp = $dir . $e;
-				if(is_file($fp)){
-					$files[] = $fp;
-					$dir_sz += filesize($fp);
-					$hr = substr($e,6,2);
-					$ydata[(int)$hr] += 1;
-				}
+				$files[] = $e;
+				$dir_sz += filesize($e);
+				$hr = substr($e,14,2);
+				$ydata[(int)$hr] += 1;
 			}
 			$files_sz = sizeof($files);
-			echo "[Entries:".$files_sz ."] [Directory Size:". round($dir_sz/1000000,2) . "MB] [Date:". $data . "] <a href='summary.php'>Back to summary page</a></br>";
+			echo "[Entries:".$files_sz ."] [Directory Size:". round($dir_sz/1000000,2) . "MB] [Date:". $date . "] <a href='summary.php'>Back to summary page</a></br>";
 
-			$filename = 'graph/bar.png';
-			$graph = drawBarGraph($filename, $ydata);
 
-			echo '<table border="4"><tr  style="height:200px"><td width="1600px">';
-			echo '<img style="vertical-align: bottom;"  width="100%" height="100%" src=';
-			echo $filename; 
-			echo "></img>";
-			echo '</td></tr></table>';
+			echo '<table border="4">';
+			
+			$f_events = 'graph/bar_events.png';
+			$graph = drawBarGraph($f_events, $ydata,'blue',"Events Graph","Events");
+			echo '<tr  style="height:200px"><td width="1600px"><img style="vertical-align: bottom;"  width="100%" height="100%" src=';
+			echo $f_events; 
+			echo "></img></td></tr>";
+
+			unset($ydata);
+			$ydata = array_fill($ydata,24,0);
+ 			$dir = "data/".$date."/*.tmr";
+			$f = glob($dir);
+			foreach ($f as $e){
+				$myfile = fopen($e,"r");
+				$ts = strtotime(fread($myfile,filesize($e)));
+				fclose($myfile);
+				$te = "20" . substr($e,8,2) . "-" . substr($e,10,2). "-" . substr($e,12,2) . " " .  substr($e,14,2) . ":" . substr($e,16,2) . ":" . substr($e,18,2);
+				$te = strtotime($te);
+				$hr = substr($e,14,2);
+				$ydata[$hr] += ($te-$ts);
+			}
+			$f_uptime = 'graph/bar_uptime.png';
+			$graph = drawBarGraph($f_uptime, $ydata,'red',"Down Time Graph","Seconds");
+			echo '<tr  style="height:200px"><td width="1600px"><img style="vertical-align: bottom;"  width="100%" height="100%" src=';
+			echo $f_uptime; 
+			echo "></img></td></tr>";
+			
+			echo '</table>';
+
 		}
 	}
 
@@ -91,7 +110,7 @@ echo 	'<br><form method="post" action="showdata.php">
   	</select>
 	<br><br>
 	<input type="hidden" name="date" value="';
-	echo $data;
+	echo $date;
 	echo '">
 	<input type="submit" />
 	</form>';

@@ -15,12 +15,12 @@
 
 
 
-function drawBarGraph($cachefilename, $ydata, $xdata){
+function drawBarGraph($cachefilename, $ydata, $xdata, $height,$color,$ylegend,$xlegend,$title){
         require_once ('jpgraph/jpgraph.php');
         require_once ('jpgraph/jpgraph_utils.inc.php');
         require_once ('jpgraph/jpgraph_bar.php');
 
-        $graph = new Graph(1228,200);
+        $graph = new Graph(1228,$height);
         $valid = $graph -> cache -> IsValid($cachefilename);
         if ($valid){
                 return;
@@ -30,13 +30,13 @@ function drawBarGraph($cachefilename, $ydata, $xdata){
                 $graph -> SetScale("textlin");
                 $graph->SetShadow();
                 $bplot = new BarPlot($ydata);
-                $bplot->SetFillColor('blue');
+                $bplot->SetFillColor($color);
                 $bplot->SetWidth(1.0);
                 $graph->Add($bplot);
-                $graph->title->Set("Disk Usage(MB) Vs Dates Graph");
+                $graph->title->Set($title);
                 $graph->xaxis->SetTickLabels($xdata);
-                $graph->xaxis->title->Set("Date");
-                $graph->yaxis->title->Set("Usage");
+                $graph->xaxis->title->Set($xlegend);
+                $graph->yaxis->title->Set($ylegend);
                 $graph->title->SetFont(FF_FONT1,FS_BOLD);
                 $graph->yaxis->title->SetFont(FF_FONT1,FS_BOLD);
                 $graph->xaxis->title->SetFont(FF_FONT1,FS_BOLD);
@@ -86,29 +86,46 @@ function drawPieGraph($cachefilename, $ydata){
 		$ydata[] = $sz/1024;
 	}
 
-	$f_bar = 'graph/bar_summary.png';
-        $graph = drawBarGraph($f_bar,$ydata,$icons);
+	$f_bar_usage = 'graph/bar_usage.png';
+        $graph = drawBarGraph($f_bar_usage,$ydata,$icons,125,'blue',"Usage","Date","Usage(MB) Vs Dates");
+
+	unset($ydata);
+	foreach ($dirs as $e){
+		$dir = $e."/*.tmr";
+		$fl = glob($dir);
+		$sz = sizeof($fl);
+		if($sz > 0)$sz = 1;
+		$ydata[] = $sz;
+	}
+	$f_bar_uptime = 'graph/bar_uptime.png';
+        $graph = drawBarGraph($f_bar_uptime,$ydata,$icons,75,'red',"Uptime","Date","Uptime Vs Dates");
 
 	$io = popen ( '/usr/bin/uptime ', 'r' );
     	$ut = fgets ( $io, 4096);
 	pclose ($io);
 	echo "&emsp;[UpTime:" . $ut . "]";
 	
-	echo '<table><tr  style="height:200px">';
-	
-	echo '<td width="200px">';
+	echo '<table>';
+	echo '<tr>';
+	echo '<td width="1228 px">';
+	echo '<img style="vertical-align: bottom;"  src=';
+	echo $f_bar_usage;
+	echo '></img></td>';
+
+	echo '<td rowspan="2" width="200px">';
 	echo '<img style="vertical-align: bottom;"  width="100%" height="100%" src=';
 	echo $f_pie;
 	echo '></img></td>';
+	echo '</tr>';
 
+	echo '<tr  style="height:50px">';
 	echo '<td width="1228 px">';
 	echo '<img style="vertical-align: bottom;"  src=';
-	echo $f_bar;
+	echo $f_bar_uptime;
 	echo '></img></td>';
+	echo '</tr>';
 
-
-	echo '</tr></table>';
-
+	echo '</table>';
 
 	echo '<form action="analytics.php" method="POST" id="action-form"></form>';
 

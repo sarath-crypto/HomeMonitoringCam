@@ -58,15 +58,53 @@ void sort(map<unsigned int,string>& M){
     	}
 } 
 
+void gettimestamp(string &fn){
+	time_t t;
+	struct tm *ptm;
+	time(&t);
+	ptm = localtime(&t);
+	char ts[24];
+	strftime(ts,24,"%y%m%d%H%M%S",ptm);
+
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	unsigned short ms = tv.tv_usec/1000;
+	
+	fn.append(ts,4,2);
+	fn += "/";
+	fn = fn.append(ts,strlen(ts));
+	fn = fn+ "m" + to_string(ms) +".";	
+}
+
 void *proc(void *p){
   	sql::Driver *driver;
   	sql::Connection *con;
 	sql::PreparedStatement *prep_stmt;
+	sql::Statement *stmt;
+	sql::ResultSet  *res;
+
 
  	driver = get_driver_instance();
   	con = driver->connect("tcp://127.0.0.1:3306", "usersecam", "secam123");
   	con->setSchema("secam");
-	
+
+	stmt = con->createStatement();
+	res = stmt->executeQuery("select ts from img");
+	string tsd;
+	if(res->next())tsd = string(res->getString("ts"));
+	delete stmt;
+	delete res;
+
+	string fn = "/var/www/html/data/";
+	gettimestamp(fn);
+	fn = fn+"tmr";	
+
+	fs::path fp = fn;	
+	if(!fs::is_directory(fp.parent_path()))fs::create_directory(fp.parent_path());
+	int fd = open (fn.c_str(),O_CREAT|O_WRONLY,0006);
+	write(fd,tsd.data(),tsd.length());
+	close(fd);
+
 	syslog(LOG_INFO,"secapp proc started");
 	while(!exit_proc){
 		if(!fq.empty()){
@@ -85,7 +123,7 @@ void *proc(void *p){
 			delete prep_stmt;
 
 			if(f.wr){
-				string fn = "/var/www/html/data/";
+				fn = "/var/www/html/data/";
 				map<unsigned int,string>sname;
 				for (const auto & p : fs::directory_iterator(fn)){
 					struct stat attrib;  
@@ -99,23 +137,10 @@ void *proc(void *p){
 					fs::remove_all(sname.begin()->second);
 				}
 				sname.clear();
-				
-				time_t t;
-				struct tm *ptm;
-				time(&t);
-				ptm = localtime(&t);
-				char ts[24];
-				strftime(ts,24,"%y%m%d%H%M%S",ptm);
-
-				struct timeval tv;
-				gettimeofday(&tv,NULL);
-				unsigned short ms = tv.tv_usec/1000;
 			
-				fn.append(ts,4,2);
-				fn += "/";
-				fn = fn.append(ts,strlen(ts));
-				fn = fn+ "m" + to_string(ms) +".jpg";	
-				
+				gettimestamp(fn);
+				fn = fn+"jpg";	
+
 				fs::path fp = fn;	
 				if(!fs::is_directory(fp.parent_path()))fs::create_directory(fp.parent_path());
 				int fd = open (fn.c_str(),O_CREAT|O_WRONLY,0006);
