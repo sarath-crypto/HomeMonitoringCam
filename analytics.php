@@ -69,7 +69,7 @@ function drawBarGraph($cachefilename, $ydata,$color,$title,$ylegend){
 				$hr = substr($e,14,2);
 				$ydata[$hr] += abs($te-$ts);
 			}
-			$f_uptime = 'graph/bar_uptime.png';
+			$f_uptime = 'graph/bar_downtime.png';
 			$graph = drawBarGraph($f_uptime, $ydata,'red',"Down Time Graph","Seconds");
 			echo '<tr  style="height:200px"><td width="1600px"><img style="vertical-align: bottom;"  width="100%" height="100%" src=';
 			echo $f_uptime; 
