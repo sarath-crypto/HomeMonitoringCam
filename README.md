@@ -1,4 +1,4 @@
-# HomeMonitoringCam
+# Elder Care Solution
 A simple software for elder care using Pi3@bookworm.Hardware consists for  Pi3 , Pi3 camera, Rapoo Bluetooth mouse (AA battery), A generic bluetooth speaker.
 Solution consists of Mouse(BT)----->Pi3-------->BT Speaker. Setting up of bluetooth pseaker with Pi3 is mentioned in https://www.okdo.com/project/set-up-a-bluetooth-speaker-with-a-raspberry-pi/.
 
