@@ -33,5 +33,5 @@ grant all on ecsys.* TO 'userecsys'@'localhost';
 insert into img(data) values(LOAD_FILE('/home/seccam/backup/dbase/tv640.jpg'));
 
 https://jpgraph.net/download/download.php?p=57
-copy /seccam/Elder-Care-Solution/jpgraph-4.4.2/src to var/www/html
+copy /Elder-Care-Solution/jpgraph-4.4.2/src to var/www/html
 sudo chown  www-data:www-data -R *
