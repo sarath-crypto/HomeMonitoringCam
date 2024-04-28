@@ -350,8 +350,8 @@ int main(){
 
         Mat frame;
         lccv::PiCamera cam;
-        cam.options->video_width = 1280;
-        cam.options->video_height = 1024;
+        cam.options->video_width = 1024;
+        cam.options->video_height = 768;
         cam.options->framerate = 2;
         cam.options->verbose = false;
         cam.startVideo();
