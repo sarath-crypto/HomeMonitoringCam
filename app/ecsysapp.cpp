@@ -26,6 +26,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
+#include <algorithm>
+#include <vector>
 
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
@@ -39,21 +41,20 @@
 #define FRAME_SZ        0x8000
 #define MAX_FERR        255
 #define EVENT_DEVICE    "/dev/input/event1"
-#define BEACON_ALIVE	10
+#define BEACON_ALIVE    10
 
-//#define DEBUG		1
+//#define DEBUG         1
 
 #define MINIAUDIO_IMPLEMENTATION
 
 namespace fs = std::filesystem;
 using namespace std;
 using namespace cv;
+using namespace std::chrono;
 
 bool exit_main = false;
 bool exit_imgproc = false;
 bool exit_mouseproc = false;
-bool exit_almproc = false;
-bool alm = false;
 
 typedef struct frames{
         bool wr;
@@ -63,11 +64,10 @@ typedef struct frames{
 
 queue <frames> fq;
 
-enum	wav_type{BLIP =1,RING};
+enum    wav_type{BLIP =1,RING};
 
 void  sighandler(int num){
         exit_imgproc = true;
-        exit_almproc = true;
         exit_mouseproc = true;
         exit_main = true;
 }
@@ -98,86 +98,59 @@ void gettimestamp(string &fn){
 }
 
 void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount){
-	ma_decoder* pDecoder = (ma_decoder*)pDevice->pUserData;
-	if (pDecoder == NULL) {
-		return;
-	}
-	ma_decoder_read_pcm_frames(pDecoder, pOutput, frameCount, NULL);
-	(void)pInput;
+        ma_decoder* pDecoder = (ma_decoder*)pDevice->pUserData;
+        if (pDecoder == NULL) {
+                return;
+        }
+        ma_decoder_read_pcm_frames(pDecoder, pOutput, frameCount, NULL);
+        (void)pInput;
 }
 
 void play_wav(unsigned char type){
-	ma_result result;
-	ma_decoder decoder;
-	ma_device_config deviceConfig;
-	ma_device device;
+        ma_result result;
+        ma_decoder decoder;
+        ma_device_config deviceConfig;
+        ma_device device;
+        system("amixer set PCM 100%");
 
-	string fn;
-	unsigned char dly = 0;
-	switch(type){
-		case(BLIP):{
-			fn = string("/home/ecsys/wav/blip.wav");
-			system("amixer set PCM 80%");
-			dly = 1;
-			break;
-		}
-		case(RING):{
-			fn = string("/home/ecsys/wav/ring.wav");
-			system("amixer set PCM 100%");
-			dly = 10;
-			break;
-		}
-	}
-	result = ma_decoder_init_file(fn.c_str(), NULL, &decoder);
-	if (result != MA_SUCCESS) {
-        	syslog(LOG_INFO,"ecsysapp almproc unable to load wav file");
-		return;
-	}
-
-	deviceConfig = ma_device_config_init(ma_device_type_playback);
-	deviceConfig.playback.format   = decoder.outputFormat;
-	deviceConfig.playback.channels = decoder.outputChannels;
-	deviceConfig.sampleRate        = decoder.outputSampleRate;
-	deviceConfig.dataCallback      = data_callback;
-	deviceConfig.pUserData         = &decoder;
-
-	if (ma_device_init(NULL, &deviceConfig, &device) != MA_SUCCESS) {
-        	syslog(LOG_INFO,"ecsysapp almproc unable to open playback device");
-		ma_decoder_uninit(&decoder);
-		return;
-	}
-	if (ma_device_start(&device) != MA_SUCCESS) {
-        	syslog(LOG_INFO,"ecsysapp almproc unable to start playback device");
-		return;
-	}
-	sleep(dly);
-	ma_device_uninit(&device);
-	ma_decoder_uninit(&decoder);
-}
-
-void *almproc(void *p){
-        syslog(LOG_INFO,"ecsysapp almproc started");
-	unsigned int s = time(NULL);
-	unsigned int e = s;
-	unsigned int d = 0;
-
-        while(!exit_almproc){
-		e = time(NULL);
-                if(alm){
-        		syslog(LOG_INFO,"ecsysapp almproc play_wav file");
-			play_wav(RING);
-                        alm = false;
+        string fn;
+        unsigned char dly = 1;
+        switch(type){
+                case(BLIP):{
+                        fn = string("/home/ecsys/wav/blip.wav");
+                        break;
                 }
-		if(s != e)d = e-s;
-		if(d >= BEACON_ALIVE){
-			d = 0;
-			s = e;
-			play_wav(BLIP);
-		}
-		//pthread_yield();
+                case(RING):{
+                        fn = string("/home/ecsys/wav/ring.wav");
+                        dly = 10;
+                        break;
+                }
         }
-        syslog(LOG_INFO,"ecsysapp almproc stopped");
-        return NULL;
+        result = ma_decoder_init_file(fn.c_str(), NULL, &decoder);
+        if (result != MA_SUCCESS) {
+                syslog(LOG_INFO,"ecsysapp mouseproc unable to load wav file");
+                return;
+        }
+
+        deviceConfig = ma_device_config_init(ma_device_type_playback);
+        deviceConfig.playback.format   = decoder.outputFormat;
+        deviceConfig.playback.channels = decoder.outputChannels;
+        deviceConfig.sampleRate        = decoder.outputSampleRate;
+        deviceConfig.dataCallback      = data_callback;
+        deviceConfig.pUserData         = &decoder;
+
+        if (ma_device_init(NULL, &deviceConfig, &device) != MA_SUCCESS) {
+                syslog(LOG_INFO,"ecsysapp mouseproc unable to open playback device");
+                ma_decoder_uninit(&decoder);
+                return;
+        }
+        if (ma_device_start(&device) != MA_SUCCESS) {
+                syslog(LOG_INFO,"ecsysapp mouseproc unable to start playback device");
+                return;
+        }
+        sleep(dly);
+        ma_device_uninit(&device);
+        ma_decoder_uninit(&decoder);
 }
 
 
@@ -191,7 +164,6 @@ void *mouseproc(void *p){
                 syslog(LOG_INFO,"ecsysapp proc bluetooth mouse %s is not a vaild device",EVENT_DEVICE);
                 exit_imgproc = true;
                 exit_mouseproc = true;
-                exit_almproc = true;
                 exit_main = true;
         }
         ioctl(fd, EVIOCGNAME(sizeof(name)), name);
@@ -201,7 +173,20 @@ void *mouseproc(void *p){
         tv.tv_sec = 1;
         tv.tv_usec = 0;
 
+        unsigned int s = time(NULL);
+        unsigned int e = s;
+        unsigned int d = 0;
+
+
         while(!exit_mouseproc){
+                e = time(NULL);
+                if(s != e)d = e-s;
+                if(d >= BEACON_ALIVE){
+                        d = 0;
+                        s = e;
+                        play_wav(BLIP);
+                }
+
                 FD_ZERO(&readfds);
                 FD_SET(fd,&readfds);
                 const size_t ev_size = sizeof(struct input_event);
@@ -212,16 +197,14 @@ void *mouseproc(void *p){
                         close(fd);
                         exit_imgproc = true;
                         exit_mouseproc = true;
-                        exit_almproc = true;
                         exit_main = true;
                 }else if (ret == 0){
-			//pthread_yield();
+                        continue;
                 }else if(read(fd, &ev, ev_size) < ev_size){
                         syslog(LOG_INFO,"ecsysapp mouseproc bluetooth size failed");
                         close(fd);
                         exit_mouseproc = true;
                         exit_imgproc = true;
-                        exit_almproc = true;
                         exit_main = true;
                 }else if((ev.type == 2) || (ev.type == 1)){
                         switch(ev.code){
@@ -230,7 +213,9 @@ void *mouseproc(void *p){
                                 case(272):
                                 case(273):
                                 case(274):{
-                                        if(!alm)alm = true;
+                                        syslog(LOG_INFO,"ecsysapp mouseproc trigger %d\n",s);
+                                        play_wav(RING);
+                                        while(read(fd, &ev, ev_size) > 0);
                                         break;
                                 }
                                 default:{
@@ -317,7 +302,7 @@ void *imgproc(void *p){
 
                         fq.pop();
                 }
-		//pthread_yield();
+                sched_yield();
         }
         delete con;
         syslog(LOG_INFO,"ecsysapp imgproc stopped");
@@ -342,7 +327,7 @@ int main(){
         close(STDOUT_FILENO);
         close(STDERR_FILENO);
 #endif
-	
+
         signal(SIGINT,sighandler);
 
         openlog("ecsysapp",LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
@@ -350,18 +335,16 @@ int main(){
 
         Mat frame;
         lccv::PiCamera cam;
-        cam.options->video_width = 640;
-        cam.options->video_height = 480;
+        cam.options->video_width = 1024;
+        cam.options->video_height = 768;
         cam.options->framerate = 2;
         cam.options->verbose = false;
         cam.startVideo();
         unsigned char ferror = 0;
 
         pthread_t th_imgproc_id;
-        pthread_t th_almproc_id;
         pthread_t th_mouseproc_id;
         pthread_create(&th_imgproc_id,NULL,imgproc,NULL);
-        pthread_create(&th_almproc_id,NULL,almproc,NULL);
         pthread_create(&th_mouseproc_id,NULL,mouseproc,NULL);
 
         MotionDetector detector(1,0.2,20,0.1,5,10,2);
@@ -371,12 +354,13 @@ int main(){
                 if(!cam.getVideoFrame(frame,1000)){
                         syslog(LOG_INFO,"ecsysapp ferror");
                         ferror++;
-			continue;
+                        continue;
                 }else{
                         ferror = 0;
                         std::list<cv::Rect2d>boxes;
                         boxes = detector.detect(frame);
                         for(auto i = boxes.begin(); i != boxes.end(); ++i)rectangle(frame,*i,Scalar(0,0,255));
+                        resize(frame,frame,Size(640,480),INTER_LINEAR);
 
                         time_t t;
                         struct tm *ptm;
@@ -401,6 +385,7 @@ int main(){
                                 imencode(".jpg",frame,buf,param);
                                 q--;
                         }while(buf.size() > FRAME_SZ);
+
                         frames f;
                         memcpy(f.data,buf.data(),buf.size());
                         f.len = buf.size();
@@ -411,13 +396,11 @@ int main(){
                 if(ferror >= MAX_FERR){
                         exit_mouseproc = true;
                         exit_imgproc = true;
-                        exit_almproc = true;
                         exit_main = true;
                 }
         }
         cam.stopVideo();
         pthread_join(th_imgproc_id,NULL);
-        pthread_join(th_almproc_id,NULL);
         pthread_join(th_mouseproc_id,NULL);
         syslog(LOG_INFO,"ecsysapp stopped");
         closelog();
