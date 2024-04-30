@@ -213,7 +213,7 @@ void *mouseproc(void *p){
                                 case(272):
                                 case(273):
                                 case(274):{
-                                        syslog(LOG_INFO,"ecsysapp mouseproc trigger %d\n",s);
+                                        syslog(LOG_INFO,"ecsysapp mouseproc trigger");
                                         play_wav(RING);
                                         while(read(fd, &ev, ev_size) > 0);
                                         break;
