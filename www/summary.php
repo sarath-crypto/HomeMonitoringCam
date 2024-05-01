@@ -1,13 +1,15 @@
 <?php
 	$dirs = array();
 	$dir = "data/";
-	$f = scandir($dir);
-	foreach ($f as $e){
-		$fp = $dir . $e;
-		if(is_dir($fp))$dirs[] = $fp;
-	}
-	$dirs = array_slice($dirs,2);
-
+	
+	$dirs = glob("data/*",GLOB_ONLYDIR);
+        usort($dirs, function($a,$b){
+                 return filemtime($a) - filemtime($b);
+        });
+        $icons = array();
+        foreach ($dirs as $e){
+                $icons[] = substr($e,5);
+        }
 	$icons = array();		
 	foreach ($dirs as $e){
 		$icons[] = substr($e,5);
