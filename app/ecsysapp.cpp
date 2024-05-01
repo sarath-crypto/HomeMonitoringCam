@@ -13,7 +13,6 @@
 #include <sys/stat.h>
 #include <string>
 #include <filesystem>
-#include <chrono>
 #include <fstream>
 #include <sys/types.h>
 #include <set>
@@ -40,7 +39,7 @@
 #define DIR_MAX_NUM     12
 #define FRAME_SZ        0x8000
 #define MAX_FERR        255
-#define EVENT_DEVICE    "/dev/input/event1"
+#define EVENT_DEVICE    "/dev/input/event0"
 #define BEACON_ALIVE    10
 
 //#define DEBUG         1
@@ -50,7 +49,8 @@
 namespace fs = std::filesystem;
 using namespace std;
 using namespace cv;
-using namespace std::chrono;
+
+pthread_mutex_t mx_lock;
 
 bool exit_main = false;
 bool exit_imgproc = false;
@@ -111,10 +111,10 @@ void play_wav(unsigned char type){
         ma_decoder decoder;
         ma_device_config deviceConfig;
         ma_device device;
-        system("amixer set PCM 100%");
 
         string fn;
         unsigned char dly = 1;
+        system("amixer set PCM 80%");
         switch(type){
                 case(BLIP):{
                         fn = string("/home/ecsys/wav/blip.wav");
@@ -122,6 +122,7 @@ void play_wav(unsigned char type){
                 }
                 case(RING):{
                         fn = string("/home/ecsys/wav/ring.wav");
+                        system("amixer set PCM 100%");
                         dly = 10;
                         break;
                 }
@@ -214,7 +215,9 @@ void *mouseproc(void *p){
                                 case(273):
                                 case(274):{
                                         syslog(LOG_INFO,"ecsysapp mouseproc trigger");
+                                        pthread_mutex_lock(&mx_lock);
                                         play_wav(RING);
+                                        pthread_mutex_unlock(&mx_lock);
                                         while(read(fd, &ev, ev_size) > 0);
                                         break;
                                 }
@@ -332,6 +335,8 @@ int main(){
 
         openlog("ecsysapp",LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
         syslog (LOG_NOTICE, "ecsysapp started by uid %d", getuid ());
+
+        pthread_mutex_init(&mx_lock,NULL);
 
         Mat frame;
         lccv::PiCamera cam;
