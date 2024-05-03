@@ -1,6 +1,6 @@
 # Elder Care Solution
 A simple software for elder care using Pi3@bookworm. Hardware consists for  Pi3 , Pi3 camera, Rapoo Bluetooth mouse (Single AA battery), and audio bluetooth transmitter, a generic bluetooth speaker.
-Solution consists of [Mouse(BT)]~~~~~~~~~~~~~~~~~~>Pi3[Application software][audio out jack]---1 meter far from Pi3 due to BLE-Wifi Non-coexistance--->[BT audio transmitter]~~~~~~~~~~~~~~~~~~>[Bluetooth portable speaker]. An image (Pi camera) grabber based on motion detection grabs and store the images which can be viewed using web browser in near real time.
+Solution consists of [Mouse(BT)]~~~~~~~~~~~~~~~~~~>Pi3[Application software][audio out jack]---1 meter far from Pi3 due to Ble-Wifi Non-coexistance--->[BT audio transmitter]~~~~~~~~~~~~~~~~~~>[Bluetooth portable speaker]. An image (Pi camera) grabber based on motion detection grabs and store the images which can be viewed using web browser in near real time.
 The solution needed mysql (mariaDB), c++ connector (https://dev.mysql.com/downloads/connector/cpp/) , apache2 , php >= 8.2.7 , opencv4, lccv(https://github.com/kbarni/LCCV),  motion detection software (https://github.com/bezbahen0/MotionDetection), jpgraph for php. Steps are shown below
 
 sudo apt update
