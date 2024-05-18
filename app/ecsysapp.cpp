@@ -36,7 +36,7 @@
 #include "motiondetector.hpp"
 #include "miniaudio.h"
 
-#define DIR_MAX_NUM     12
+#define DIR_MAX_NUM     14
 #define FRAME_SZ        0x8000
 #define MAX_FERR        255
 #define EVENT_DEVICE    "/dev/input/event0"
@@ -208,12 +208,10 @@ void *mouseproc(void *p){
                         exit_imgproc = true;
                         exit_main = true;
                 }else if((ev.type == 2) || (ev.type == 1)){
+                        //8 ,11, 274 wheels
                         switch(ev.code){
-                                case(8):
-                                case(11):
                                 case(272):
-                                case(273):
-                                case(274):{
+                                case(273):{
                                         syslog(LOG_INFO,"ecsysapp mouseproc trigger");
                                         pthread_mutex_lock(&mx_lock);
                                         play_wav(RING);
@@ -262,6 +260,8 @@ void *imgproc(void *p){
 
         syslog(LOG_INFO,"ecsysapp imgproc started");
         while(!exit_imgproc){
+                pthread_mutex_lock(&mx_lock);
+                pthread_mutex_unlock(&mx_lock);
                 if(!fq.empty()){
                         frames f = fq.front();
 
@@ -356,6 +356,8 @@ int main(){
 
         syslog(LOG_INFO,"ecsysapp started");
         while(!exit_main){
+                pthread_mutex_lock(&mx_lock);
+                pthread_mutex_unlock(&mx_lock);
                 if(!cam.getVideoFrame(frame,1000)){
                         syslog(LOG_INFO,"ecsysapp ferror");
                         ferror++;
@@ -376,9 +378,9 @@ int main(){
 
                         Point tp(0,24);
                         int fs = 1;
-                        Scalar fc(255,0,0);
+                        Scalar fc(255,255,0);
                         int fw = 1;
-                        putText(frame,ts,tp,FONT_HERSHEY_COMPLEX,fs,fc,fw);
+                        putText(frame,ts,tp,FONT_HERSHEY_TRIPLEX,fs,fc,fw);
 
                         unsigned char q = 80;
                         vector<unsigned char>buf;
