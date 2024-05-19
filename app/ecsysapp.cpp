@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <vector>
 
+
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
 #include <cppconn/resultset.h>
@@ -36,6 +37,9 @@
 #include "motiondetector.hpp"
 #include "miniaudio.h"
 
+
+#define DAY_SEC         86400
+#define HR_SEC          3600
 #define DIR_MAX_NUM     14
 #define FRAME_SZ        0x8000
 #define MAX_FERR        255
@@ -45,6 +49,8 @@
 //#define DEBUG         1
 
 #define MINIAUDIO_IMPLEMENTATION
+
+
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -62,6 +68,15 @@ typedef struct frames{
         unsigned short len;
 }frames;
 
+typedef struct uptme{
+        unsigned long uts;
+        unsigned short d;
+        unsigned char  h;
+        unsigned char  m;
+        unsigned char  s;
+}uptme;
+
+
 queue <frames> fq;
 
 enum    wav_type{BLIP =1,RING};
@@ -78,6 +93,17 @@ void sort(map<unsigned int,string>& M){
                 MM.insert({ it.second, it.first });
         }
 }
+
+void getuptime(uptme *pupt){
+        unsigned long ct = (unsigned long)time(NULL)-pupt->uts;
+        pupt->d = ct/DAY_SEC;
+        ct -= pupt->d*DAY_SEC;
+        pupt->h = ct/HR_SEC;
+        ct -= pupt->h*HR_SEC;
+        pupt->m = ct/60;
+        pupt->s = ct-pupt->m*60;
+}
+
 
 void gettimestamp(string &fn){
         time_t t;
@@ -354,6 +380,10 @@ int main(){
 
         MotionDetector detector(1,0.2,20,0.1,5,10,2);
 
+        uptme ut;
+        ut.uts = (unsigned long)time(NULL);
+        getuptime(&ut);
+
         syslog(LOG_INFO,"ecsysapp started");
         while(!exit_main){
                 pthread_mutex_lock(&mx_lock);
@@ -375,12 +405,15 @@ int main(){
                         ptm = localtime(&t);
                         char ts[16];
                         strftime(ts,16,"%H%M%S",ptm);
+                        getuptime(&ut);
+                        string header(ts);
+                        header += "@"+to_string(ut.d)+":"+to_string(ut.h)+":"+to_string(ut.m)+":"+to_string(ut.s);
 
                         Point tp(0,24);
                         int fs = 1;
                         Scalar fc(255,255,0);
                         int fw = 1;
-                        putText(frame,ts,tp,FONT_HERSHEY_TRIPLEX,fs,fc,fw);
+                        putText(frame,header.c_str(),tp,FONT_HERSHEY_TRIPLEX,fs,fc,fw);
 
                         unsigned char q = 80;
                         vector<unsigned char>buf;
