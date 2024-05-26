@@ -43,8 +43,12 @@
 #define DIR_MAX_NUM     14
 #define FRAME_SZ        0x8000
 #define MAX_FERR        255
-#define EVENT_DEVICE    "/dev/input/event0"
+#define EVENT_DEVICE    "/dev/input/event1"
 #define BEACON_ALIVE    10
+#define FILE_PATH       "/var/www/html/data/"
+
+#define USB_CAMERA      1
+//#define PI_CAMERA     1
 
 //#define DEBUG         1
 
@@ -73,13 +77,13 @@ typedef struct uptme{
         unsigned short d;
         unsigned char  h;
         unsigned char  m;
-        unsigned char  s;
 }uptme;
 
 
 queue <frames> fq;
 
-enum    wav_type{BLIP =1,RING};
+enum    wav_type{BLIP = 1,RING};
+enum    file_type{JPG = 1,TMR,TRG};
 
 void  sighandler(int num){
         exit_imgproc = true;
@@ -101,7 +105,6 @@ void getuptime(uptme *pupt){
         pupt->h = ct/HR_SEC;
         ct -= pupt->h*HR_SEC;
         pupt->m = ct/60;
-        pupt->s = ct-pupt->m*60;
 }
 
 
@@ -180,6 +183,30 @@ void play_wav(unsigned char type){
         ma_decoder_uninit(&decoder);
 }
 
+void file_write(char *pdata,unsigned long len,char type){
+        string fn = FILE_PATH;
+        gettimestamp(fn);
+        switch(type){
+                case(JPG):{
+                        fn = fn+"jpg";
+                        break;
+                }
+                case(TMR):{
+                        fn = fn+"tmr";
+                        break;
+                }
+                case(TRG):{
+                        fn = fn+"trg";
+                        break;
+                }
+        }
+        fs::path fp = fn;
+        if(!fs::is_directory(fp.parent_path()))fs::create_directory(fp.parent_path());
+        int fd = open (fn.c_str(),O_CREAT|O_WRONLY,0006);
+        if(len)write(fd,pdata,len);
+        close(fd);
+}
+
 
 void *mouseproc(void *p){
         int fd = -1;
@@ -239,6 +266,7 @@ void *mouseproc(void *p){
                                 case(272):
                                 case(273):{
                                         syslog(LOG_INFO,"ecsysapp mouseproc trigger");
+                                        file_write(NULL,0,TRG);
                                         pthread_mutex_lock(&mx_lock);
                                         play_wav(RING);
                                         pthread_mutex_unlock(&mx_lock);
@@ -274,16 +302,7 @@ void *imgproc(void *p){
         delete stmt;
         delete res;
 
-        string fn = "/var/www/html/data/";
-        gettimestamp(fn);
-        fn = fn+"tmr";
-
-        fs::path fp = fn;
-        if(!fs::is_directory(fp.parent_path()))fs::create_directory(fp.parent_path());
-        int fd = open (fn.c_str(),O_CREAT|O_WRONLY,0006);
-        write(fd,tsd.data(),tsd.length());
-        close(fd);
-
+        file_write(tsd.data(),tsd.length(),TMR);
         syslog(LOG_INFO,"ecsysapp imgproc started");
         while(!exit_imgproc){
                 pthread_mutex_lock(&mx_lock);
@@ -304,9 +323,8 @@ void *imgproc(void *p){
                         delete prep_stmt;
 
                         if(f.wr){
-                                fn = "/var/www/html/data/";
                                 map<unsigned int,string>sname;
-                                for (const auto & p : fs::directory_iterator(fn)){
+                                for (const auto & p : fs::directory_iterator(FILE_PATH)){
                                         struct stat attrib;
                                         stat(p.path().string().c_str(), &attrib);
                                         unsigned int ts = mktime(gmtime(&attrib.st_mtime));
@@ -318,15 +336,7 @@ void *imgproc(void *p){
                                         fs::remove_all(sname.begin()->second);
                                 }
                                 sname.clear();
-
-                                gettimestamp(fn);
-                                fn = fn+"jpg";
-
-                                fs::path fp = fn;
-                                if(!fs::is_directory(fp.parent_path()))fs::create_directory(fp.parent_path());
-                                int fd = open (fn.c_str(),O_CREAT|O_WRONLY,0006);
-                                write(fd,&f.data,f.len);
-                                close(fd);
+                                file_write((char *)f.data,f.len,JPG);
                         }
 
                         fq.pop();
@@ -365,12 +375,26 @@ int main(){
         pthread_mutex_init(&mx_lock,NULL);
 
         Mat frame;
+
+#ifdef PI_CAMERA
         lccv::PiCamera cam;
         cam.options->video_width = 1024;
         cam.options->video_height = 768;
         cam.options->framerate = 2;
         cam.options->verbose = false;
         cam.startVideo();
+#endif
+
+#ifdef USB_CAMERA
+        cv::VideoCapture camera(0);
+        if (!camera.isOpened()) {
+                syslog (LOG_NOTICE, "ecsysapp usb camera failed");
+                return 1;
+        }
+        camera.set(CAP_PROP_FRAME_WIDTH,1280);
+        camera.set(CAP_PROP_FRAME_HEIGHT,720);
+
+#endif
         unsigned char ferror = 0;
 
         pthread_t th_imgproc_id;
@@ -388,11 +412,23 @@ int main(){
         while(!exit_main){
                 pthread_mutex_lock(&mx_lock);
                 pthread_mutex_unlock(&mx_lock);
+#ifdef PI_CAMERA
                 if(!cam.getVideoFrame(frame,1000)){
-                        syslog(LOG_INFO,"ecsysapp ferror");
+                        syslog(LOG_INFO,"ecsysapp ferror picamera");
                         ferror++;
                         continue;
-                }else{
+                }
+#endif
+#ifdef USB_CAMERA
+                camera >> frame;
+                printf("size %d %d\n",frame.cols,frame.rows);
+                if(frame.empty()){
+                        syslog(LOG_INFO,"ecsysapp ferror usbcamera");
+                        ferror++;
+                        continue;
+                }
+#endif
+                else{
                         ferror = 0;
                         std::list<cv::Rect2d>boxes;
                         boxes = detector.detect(frame);
@@ -407,7 +443,7 @@ int main(){
                         strftime(ts,16,"%H%M%S",ptm);
                         getuptime(&ut);
                         string header(ts);
-                        header += "@"+to_string(ut.d)+":"+to_string(ut.h)+":"+to_string(ut.m)+":"+to_string(ut.s);
+                        header += "@"+to_string(ut.d)+":"+to_string(ut.h)+":"+to_string(ut.m);
 
                         Point tp(0,24);
                         int fs = 1;
@@ -439,7 +475,9 @@ int main(){
                         exit_main = true;
                 }
         }
+#ifdef PI_CAMERA
         cam.stopVideo();
+#endif
         pthread_join(th_imgproc_id,NULL);
         pthread_join(th_mouseproc_id,NULL);
         syslog(LOG_INFO,"ecsysapp stopped");
