@@ -421,7 +421,6 @@ int main(){
 #endif
 #ifdef USB_CAMERA
                 camera >> frame;
-                printf("size %d %d\n",frame.cols,frame.rows);
                 if(frame.empty()){
                         syslog(LOG_INFO,"ecsysapp ferror usbcamera");
                         ferror++;
